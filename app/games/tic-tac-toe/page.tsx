@@ -6,6 +6,7 @@ const TicTacToe = () => {
   const [board, setBoard] = useState<Array<string | null>>(Array(9).fill(null));
   const [player, setPlayer] = useState<"X" | "O">("X");
   const [winner, setWinner] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const handleClick = (index: number) => {
     updateBoard(index);
@@ -21,6 +22,11 @@ const TicTacToe = () => {
   }, [board, player, winner]);
 
   const checkWinner = (board: Array<string | null>) => {
+    // if all cells are filled, it's a tie
+    if (board.every((cell) => cell !== null)) {
+      setWinner("Tie");
+      return;
+    }
     const winningCombinations = [
       [0, 1, 2],
       [3, 4, 5],
@@ -43,6 +49,7 @@ const TicTacToe = () => {
 
   useEffect(() => {
     const getAIResponse = async () => {
+      setLoading(true);
       const res = await fetch("/api", {
         method: "POST",
         headers: {
@@ -54,12 +61,18 @@ const TicTacToe = () => {
         }),
       });
       const { index }  = await res.json();
+      // if index is taken, try again
+      if (board[index]) {
+        getAIResponse();
+        return;
+      }
       updateBoard(index);
+      setLoading(false);
     }
-    if (player === "O") {
+    if (player === "O" && !winner) {
       getAIResponse();
     }
-  }, [board, player, updateBoard]);
+  }, [board, player, updateBoard, winner]);
   
 
   return (
@@ -86,6 +99,13 @@ const TicTacToe = () => {
           </p>
         )}
       </div>
+      {loading && (
+        <div className="mt-4">
+          <p className="font-mono text-gray-800 dark:text-gray-300">
+            AI is thinking...
+          </p>
+        </div>
+      )}
       {/* reset game if game is over */}
       {winner && (
         <button
