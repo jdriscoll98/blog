@@ -3,27 +3,28 @@
 import { useCallback, useEffect, useState } from "react";
 
 const TicTacToe = () => {
-  const [board, setBoard] = useState<Array<string | null>>(Array(9).fill(null));
+  const [board, setBoard] = useState<Array<string>>(Array(9).fill(""));
+  const [history, setHistory] = useState<Array<Array<string>>>([]);
   const [player, setPlayer] = useState<"X" | "O">("X");
-  const [winner, setWinner] = useState<string | null>(null);
+  const [winner, setWinner] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
-  const handleClick = (index: number) => {
-    updateBoard(index);
-  };
+  const updateBoard = useCallback(
+    (index: number) => {
+      if (board[index] || winner) return;
+      setHistory([...history, board]);
+      const newBoard = [...board];
+      newBoard[index] = player;
+      setBoard(newBoard);
+      checkWinner(newBoard);
+      setPlayer(player === "X" ? "O" : "X");
+    },
+    [board, history, player, winner]
+  );
 
-  const updateBoard = useCallback((index: number) => {
-    if (board[index] || winner) return;
-    const newBoard = [...board];
-    newBoard[index] = player;
-    setBoard(newBoard);
-    checkWinner(newBoard);
-    setPlayer(player === "X" ? "O" : "X");
-  }, [board, player, winner]);
-
-  const checkWinner = (board: Array<string | null>) => {
+  const checkWinner = (board: Array<string>) => {
     // if all cells are filled, it's a tie
-    if (board.every((cell) => cell !== null)) {
+    if (board.every((cell) => !!cell)) {
       setWinner("Tie");
       return;
     }
@@ -50,30 +51,34 @@ const TicTacToe = () => {
   useEffect(() => {
     const getAIResponse = async () => {
       setLoading(true);
-      const res = await fetch("/api", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          board,
-          player,
-        }),
-      });
-      const { index }  = await res.json();
-      // if index is taken, try again
-      if (board[index]) {
-        getAIResponse();
-        return;
+      try {
+        const res = await fetch("/api", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            board,
+            history,
+          }),
+        });
+        const { index } = await res.json();
+        // if index is taken, try again
+        if (board[index]) {
+          getAIResponse();
+          return;
+        }
+        updateBoard(index);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
       }
-      updateBoard(index);
-      setLoading(false);
-    }
+    };
     if (player === "O" && !winner) {
       getAIResponse();
     }
-  }, [board, player, updateBoard, winner]);
-  
+  }, [board, history, player, updateBoard, winner]);
 
   return (
     <div className="p-4">
@@ -82,7 +87,7 @@ const TicTacToe = () => {
           <button
             key={index}
             className="w-full h-16 flex items-center justify-center text-2xl font-bold bg-white dark:bg-gray-600 rounded shadow cursor-pointer hover:bg-blue-100 dark:hover:bg-gray-700"
-            onClick={() => handleClick(index)}
+            onClick={() => updateBoard(index)}
           >
             {cell}
           </button>
@@ -111,11 +116,10 @@ const TicTacToe = () => {
         <button
           className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
           onClick={() => {
-            setBoard(Array(9).fill(null));
-            setWinner(null);
-
-            // set the first player to the loser of the previous game
-            setPlayer(winner === "X" ? "O" : "X");
+            setBoard(Array(9).fill(""));
+            setWinner("");
+            setHistory([]);
+            setPlayer("X");
           }}
         >
           Reset Game
